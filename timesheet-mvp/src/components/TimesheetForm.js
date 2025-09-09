@@ -27,8 +27,8 @@ function TimesheetForm() {
   return (
     <div style={{ padding: 24 }}>
       <h2>Timesheet Form</h2>
-      <form onSubmit={onSubmit} style={{ display: 'grid', gap: 12, maxWidth: 400 }}>
-        <input name="client" placeholder="Client" value={formData.client} onChange={onChange} required />
+      <form onSubmit={onSubmit} style={{ display: 'grid', gap: 12, maxWidth: 400 }}> 
+        <input name="client" placeholder="Client" value={formData.client} onChange={onChange} required /> 
         <input name="state" placeholder="State (e.g., NY)" value={formData.state} onChange={onChange} required />
         <input type="number" name="week1" placeholder="Week 1 Hours" value={formData.week1} onChange={onChange} />
         <input type="number" name="week2" placeholder="Week 2 Hours" value={formData.week2} onChange={onChange} />
