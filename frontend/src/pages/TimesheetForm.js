@@ -8,6 +8,7 @@ function TimesheetForm() {
   const [week2Hours, setWeek2Hours] = useState("");
   const [client, setClient] = useState("");
   const [state, setState] = useState("");
+  const [notes, setNotes] = useState("");
 
   const navigate = useNavigate();
 
@@ -26,10 +27,8 @@ function TimesheetForm() {
       return;
     }
 
-    const period = `${startDate} - ${endDate}`;
-
     try {
-      // First, submit Week 1
+      // Week 1 submission
       if (week1Hours) {
         await fetch("http://localhost:3001/submit", {
           method: "POST",
@@ -38,14 +37,16 @@ function TimesheetForm() {
             email: userEmail,
             client,
             state,
-            period,
+            periodStart: startDate,
+            periodEnd: endDate,
             week: "W1",
             hours: Number(week1Hours),
+            notes,
           }),
         });
       }
 
-      // Then, submit Week 2
+      // Week 2 submission
       if (week2Hours) {
         await fetch("http://localhost:3001/submit", {
           method: "POST",
@@ -54,16 +55,18 @@ function TimesheetForm() {
             email: userEmail,
             client,
             state,
-            period,
+            periodStart: startDate,
+            periodEnd: endDate,
             week: "W2",
             hours: Number(week2Hours),
+            notes,
           }),
         });
       }
 
-      // If both succeed, move to review page
+      // Navigate to review
       navigate("/review", {
-        state: { startDate, endDate, week1Hours, week2Hours, client, state },
+        state: { startDate, endDate, client, state, week1Hours, week2Hours, notes },
       });
     } catch (err) {
       console.error(err);
@@ -130,6 +133,13 @@ function TimesheetForm() {
           placeholder="Week 2 Hours"
           value={week2Hours}
           onChange={(e) => setWeek2Hours(e.target.value)}
+          className="w-full mb-4 p-2 border rounded"
+        />
+
+        <textarea
+          placeholder="Notes"
+          value={notes}
+          onChange={(e) => setNotes(e.target.value)}
           className="w-full mb-4 p-2 border rounded"
         />
 

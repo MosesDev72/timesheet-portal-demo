@@ -7,9 +7,17 @@ function Review() {
   const navigate = useNavigate();
 
   // values passed from TimesheetForm
-  const { startDate, endDate, client, state } = location.state || {};
-  const period = `${startDate} - ${endDate}`;
+  const { startDate, endDate } = location.state || {};
   const email = localStorage.getItem("userEmail");
+
+  // Build period format the same way backend does (MM/DD–MM/DD)
+  const formatDate = (d) => {
+    const dt = new Date(d);
+    return `${String(dt.getMonth() + 1).padStart(2, "0")}/${String(
+      dt.getDate()
+    ).padStart(2, "0")}`;
+  };
+  const period = startDate && endDate ? `${formatDate(startDate)}–${formatDate(endDate)}` : "";
 
   useEffect(() => {
     if (!email || !period) return;
@@ -42,13 +50,13 @@ function Review() {
         >
           Review Timesheet
         </h1>
-        <p>Email: {timesheet.email}</p>
-        <p>Client: {timesheet.client}</p>
-        <p>State: {timesheet.state}</p>
-        <p>Period: {timesheet.period}</p>
-        <p>Week 1 Hours: {timesheet.w1}</p>
-        <p>Week 2 Hours: {timesheet.w2}</p>
-        <p>Total Hours: {timesheet.total}</p>
+        <p><strong>Email:</strong> {timesheet.email}</p>
+        <p><strong>Client:</strong> {timesheet.client}</p>
+        <p><strong>State:</strong> {timesheet.state}</p>
+        <p><strong>Period:</strong> {timesheet.period}</p>
+        <p><strong>Week 1 Hours:</strong> {timesheet.w1}</p>
+        <p><strong>Week 2 Hours:</strong> {timesheet.w2}</p>
+        <p><strong>Notes:</strong> {timesheet.notes}</p>
 
         <button
           onClick={() => navigate("/confirmation")}
