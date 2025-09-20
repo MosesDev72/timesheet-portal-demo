@@ -1,0 +1,15 @@
+# Ignore dependencies
+node_modules/
+**/node_modules/
+
+# Ignore cache
+**/.cache/
+
+# Logs
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# OS / editor files
+.DS_Store
+.env
