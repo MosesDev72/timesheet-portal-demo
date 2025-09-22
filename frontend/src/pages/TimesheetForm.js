@@ -1,4 +1,5 @@
-import React, { useState } from "react";
+import { useTimesheetValidation } from "../hooks/useTimesheetValidation";
+import React, { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 
 function TimesheetForm() {
@@ -10,15 +11,62 @@ function TimesheetForm() {
   const [state, setState] = useState("");
   const [notes, setNotes] = useState("");
 
+  const { errors, validateForm, clearError } = useTimesheetValidation();
   const navigate = useNavigate();
 
+  // Load last used state from localStorage (only on first load)
+  useEffect(() => {
+    const savedState = localStorage.getItem("lastTimesheetState");
+    if (savedState && !state) {
+      const parsedState = JSON.parse(savedState);
+      setState(parsedState.state || "");
+    }
+  }, []);
+
+  // Save state to localStorage when state changes
+  useEffect(() => {
+    if (state && state.trim() !== "") {
+      localStorage.setItem("lastTimesheetState", JSON.stringify({ state }));
+    }
+  }, [state]);
+
+  const handleInputChange = (setter, fieldName, value) => {
+    setter(value);
+    // Clear error when user starts typing
+    if (errors[fieldName]) {
+      clearError(fieldName);
+    }
+  };
+
+  // INTEGRATED DEBUGGING handleSubmit
   const handleSubmit = async (e) => {
     e.preventDefault();
 
-    if (!startDate || !endDate || !week1Hours || !week2Hours || !client || !state) {
-      alert("Please fill in all fields");
+    // Prepare form data for validation
+    const formData = {
+      startDate,
+      endDate,
+      week1Hours,
+      week2Hours,
+      client,
+      state,
+      notes,
+    };
+
+    console.log("🔍 Form data being validated:", formData);
+    console.log("🔍 Current errors before validation:", errors);
+
+    // Validate form
+    const isValid = validateForm(formData);
+    console.log("🔍 Validation result:", isValid);
+    console.log("🔍 Errors after validation:", errors);
+
+    if (!isValid) {
+      console.log("❌ Validation failed - stopping submission");
       return;
     }
+
+    console.log("✅ Validation passed - proceeding with submission");
 
     const userEmail = localStorage.getItem("userEmail");
     if (!userEmail) {
@@ -66,7 +114,15 @@ function TimesheetForm() {
 
       // Navigate to review
       navigate("/review", {
-        state: { startDate, endDate, client, state, week1Hours, week2Hours, notes },
+        state: {
+          startDate,
+          endDate,
+          client,
+          state,
+          week1Hours,
+          week2Hours,
+          notes,
+        },
       });
     } catch (err) {
       console.error(err);
@@ -90,65 +146,155 @@ function TimesheetForm() {
           Timesheet Submission
         </h1>
 
-        <input
-          type="text"
-          placeholder="Client"
-          value={client}
-          onChange={(e) => setClient(e.target.value)}
-          className="w-full mb-4 p-2 border rounded"
-        />
+        {/* Client Input */}
+        <div className="mb-4">
+          <input
+            type="text"
+            placeholder="Client"
+            value={client}
+            onChange={(e) =>
+              handleInputChange(setClient, "client", e.target.value)
+            }
+            className={`w-full p-2 border rounded ${
+              errors.client ? "border-red-500" : "border-gray-300"
+            }`}
+          />
+          {errors.client && (
+            <p className="text-red-500 text-sm mt-1">{errors.client}</p>
+          )}
+        </div>
 
-        <input
-          type="text"
-          placeholder="State"
-          value={state}
-          onChange={(e) => setState(e.target.value)}
-          className="w-full mb-4 p-2 border rounded"
-        />
+        {/* State Input */}
+        <div className="mb-4">
+          <input
+            type="text"
+            placeholder="State"
+            value={state}
+            onChange={(e) =>
+              handleInputChange(setState, "state", e.target.value)
+            }
+            className={`w-full p-2 border rounded ${
+              errors.state ? "border-red-500" : "border-gray-300"
+            }`}
+          />
+          {errors.state && (
+            <p className="text-red-500 text-sm mt-1">{errors.state}</p>
+          )}
+        </div>
 
-        <input
-          type="date"
-          value={startDate}
-          onChange={(e) => setStartDate(e.target.value)}
-          className="w-full mb-4 p-2 border rounded"
-        />
+        {/* Start Date */}
+        <div className="mb-4">
+          <input
+            type="date"
+            value={startDate}
+            onChange={(e) =>
+              handleInputChange(setStartDate, "startDate", e.target.value)
+            }
+            className={`w-full p-2 border rounded ${
+              errors.startDate ? "border-red-500" : "border-gray-300"
+            }`}
+          />
+          {errors.startDate && (
+            <p className="text-red-500 text-sm mt-1">{errors.startDate}</p>
+          )}
+        </div>
 
-        <input
-          type="date"
-          value={endDate}
-          onChange={(e) => setEndDate(e.target.value)}
-          className="w-full mb-4 p-2 border rounded"
-        />
+        {/* End Date */}
+        <div className="mb-4">
+          <input
+            type="date"
+            value={endDate}
+            onChange={(e) =>
+              handleInputChange(setEndDate, "endDate", e.target.value)
+            }
+            className={`w-full p-2 border rounded ${
+              errors.endDate ? "border-red-500" : "border-gray-300"
+            }`}
+          />
+          {errors.endDate && (
+            <p className="text-red-500 text-sm mt-1">{errors.endDate}</p>
+          )}
+        </div>
 
-        <input
-          type="number"
-          placeholder="Week 1 Hours"
-          value={week1Hours}
-          onChange={(e) => setWeek1Hours(e.target.value)}
-          className="w-full mb-4 p-2 border rounded"
-        />
+        {/* Week 1 Hours */}
+        <div className="mb-4">
+          <input
+            type="number"
+            placeholder="Week 1 Hours"
+            value={week1Hours}
+            onChange={(e) =>
+              handleInputChange(setWeek1Hours, "week1Hours", e.target.value)
+            }
+            step="0.01"
+            min="0"
+            max="100"
+            className={`w-full p-2 border rounded ${
+              errors.week1Hours ? "border-red-500" : "border-gray-300"
+            }`}
+          />
+          {errors.week1Hours && (
+            <p className="text-red-500 text-sm mt-1">{errors.week1Hours}</p>
+          )}
+        </div>
 
-        <input
-          type="number"
-          placeholder="Week 2 Hours"
-          value={week2Hours}
-          onChange={(e) => setWeek2Hours(e.target.value)}
-          className="w-full mb-4 p-2 border rounded"
-        />
+        {/* Week 2 Hours */}
+        <div className="mb-4">
+          <input
+            type="number"
+            placeholder="Week 2 Hours"
+            value={week2Hours}
+            onChange={(e) =>
+              handleInputChange(setWeek2Hours, "week2Hours", e.target.value)
+            }
+            step="0.01"
+            min="0"
+            max="100"
+            className={`w-full p-2 border rounded ${
+              errors.week2Hours ? "border-red-500" : "border-gray-300"
+            }`}
+          />
+          {errors.week2Hours && (
+            <p className="text-red-500 text-sm mt-1">{errors.week2Hours}</p>
+          )}
+        </div>
 
-        <textarea
-          placeholder="Notes"
-          value={notes}
-          onChange={(e) => setNotes(e.target.value)}
-          className="w-full mb-4 p-2 border rounded"
-        />
+        {/* Total Hours Error (Period Cap) */}
+        {errors.total && (
+          <div className="mb-4 p-3 bg-red-50 border border-red-200 rounded">
+            <p className="text-red-600 text-sm">{errors.total}</p>
+          </div>
+        )}
+
+        {/* Notes */}
+        <div className="mb-4">
+          <textarea
+            placeholder="Notes"
+            value={notes}
+            onChange={(e) => setNotes(e.target.value)}
+            className="w-full p-2 border border-gray-300 rounded"
+            rows="3"
+          />
+        </div>
 
         <button
           type="submit"
-          className="w-full bg-blue-600 text-white p-2 rounded hover:bg-blue-700"
+          disabled={Object.keys(errors).length > 0}
+          className={`w-full p-2 rounded text-white font-medium transition-colors ${
+            Object.keys(errors).length > 0
+              ? "bg-gray-400 cursor-not-allowed"
+              : "bg-blue-600 hover:bg-blue-700"
+          }`}
         >
-          Review Before Submit
+          {Object.keys(errors).length > 0
+            ? "Fix Errors Before Submit"
+            : "Review Before Submit"}
         </button>
+
+        {/* TEMPORARY DEBUG INFO - Remove after fixing */}
+        <div className="mt-2 text-xs text-gray-500">
+          Debug: {Object.keys(errors).length} errors -{" "}
+          {JSON.stringify(Object.keys(errors))}
+        </div>
       </form>
     </div>
   );
