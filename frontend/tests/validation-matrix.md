@@ -21,6 +21,21 @@
 
 | Test ID  | Test Case Steps  | Expected Result | Pass/Fail | Screenshot |
 
+| Test ID  | Test Case           | Steps (Inputs)                                                                                                                                                                                                                                | Expected Result                                                                                                                                                                                                                                                                                  | Pass/Fail | Notes                  | Screenshot                            |
+| -------- | ------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | --------- | ---------------------- | ------------------------------------- |
+| **S001** | Sample QA (Acme/GA) | 1. Navigate to `http://localhost:3000/timesheet`<br>2. From: `2025-09-14`<br>3. To: `2025-09-27`<br>4. Week 1: `40`<br>5. Week 2: `0`<br>6. Client: `Acme`<br>7. State: `GA`<br>8. Click "Review Before Submit"<br>9. Click "Export to Excel" | ✅ Navigates to `/review`<br>✅ Review shows correct data<br>✅ Downloads `timesheet.xlsx`<br>✅ Excel: Email (`john@example.com`), Week 1 (`40.00`), Week 2 (`0.00`), State (`GA`), Client (`Acme`), Pay Period (`09/14–09/27`), Notes (empty)<br>✅ Backend logs 201 Created<br>✅ No console errors | ☐         | Run and mark Pass/Fail | `screenshots/test-sample-qa.xlsx.png` |
+| **S001 Results** |Expected Result for Columns A-G ✅ | Note: The date is incorrect, working on fix. |
+![S001.1](./screenshots/S001-Timesheet_UI.png)
+![S001.2](./screenshots/S001-Review_UI.png)
+![S001.3](./screenshots/S001-Excel_Export.png)
+*********Screenshots with fixed date bug********
+![S001.4](./screenshots/S001-Fixed_Timesheet.png)
+![S001.5](./screenshots/S001-Fixed_Review.png)
+![S001.6](./screenshots/S001-Fixed_Excel.png)
+
+
+## Core Validation Tests
+
 | **T001** | Decimals accepted   | 1. Navigate to `/timesheet`<br>2. Week 1: `18.5`<br>3. Week 2: `0`<br>4. Client: "Client 1"<br>5. State: "California"<br>6. Click "Review Before Submit"        | ✅ Accepts decimals<br>✅ Navigates to `/review`<br>✅ Review shows "Week 1 Hours Worked: 18.5"                                                | ☐         | Total = 18.5 ≤ 168    |
 | **T001 results** | Decimals accepted | ... | Expected Result | ✅ | Total = 18.5 ≤ 168 | ![T001](./screenshots/T001-decimals-accepted.png) |
 
@@ -67,10 +82,10 @@
 
 
 
-| **T010** | Zero hours                | 1. Navigate to `/timesheet`<br>2. Week 1: `0`<br>3. Week 2: `0`<br>4. Client: "Client 1"<br>5. State: "California"<br>6. Click "Review Before Submit"          | ✅ No errors<br>✅ Navigates to Review<br>✅ Review shows "0" for both weeks                    | ☐         | Minimum valid values |            
+| **T010** | Zero hours                | 1. Navigate to `/timesheet`<br>2. Week 1: `0`<br>3. Week 2: `0`<br>4. Client: "Client 1"<br>5. State: "California"<br>6. Click "Review Before Submit"          | ✅ No errors<br>✅ Navigates to Review<br>✅ Review shows "0" for both weeks                    | ☐         | Minimum valid values |
 | **T018 results** | Zero hours | Week 1: `0` | Week 2: `0` | Expected Result | ✅ | ✅ Validation passed - proceeding with submission | ![T010](./screenshots/T010.zerovalues.pngscre) |
 
-s
+
 ---
 ## Execution Instructions
 

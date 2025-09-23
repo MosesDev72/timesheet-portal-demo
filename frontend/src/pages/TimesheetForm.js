@@ -1,4 +1,5 @@
 import { useTimesheetValidation } from "../hooks/useTimesheetValidation";
+import { parseLocalDate, formatLocalDate } from "../utils/dateUtils";
 import React, { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 
@@ -38,9 +39,12 @@ function TimesheetForm() {
     }
   };
 
-  // INTEGRATED DEBUGGING handleSubmit
   const handleSubmit = async (e) => {
     e.preventDefault();
+
+    // Parse dates as local to avoid timezone shift
+    const localStartDate = parseLocalDate(startDate);
+    const localEndDate = parseLocalDate(endDate);
 
     // Prepare form data for validation
     const formData = {
@@ -54,6 +58,10 @@ function TimesheetForm() {
     };
 
     console.log("🔍 Form data being validated:", formData);
+    console.log("🔍 Parsed local dates:", {
+      startDate: formatLocalDate(localStartDate),
+      endDate: formatLocalDate(localEndDate),
+    });
     console.log("🔍 Current errors before validation:", errors);
 
     // Validate form
@@ -85,8 +93,8 @@ function TimesheetForm() {
             email: userEmail,
             client,
             state,
-            periodStart: startDate,
-            periodEnd: endDate,
+            periodStart: formatLocalDate(localStartDate), // Send MM/DD/YYYY
+            periodEnd: formatLocalDate(localEndDate),
             week: "W1",
             hours: Number(week1Hours),
             notes,
@@ -103,8 +111,8 @@ function TimesheetForm() {
             email: userEmail,
             client,
             state,
-            periodStart: startDate,
-            periodEnd: endDate,
+            periodStart: formatLocalDate(localStartDate), // Send MM/DD/YYYY
+            periodEnd: formatLocalDate(localEndDate),
             week: "W2",
             hours: Number(week2Hours),
             notes,
@@ -112,11 +120,11 @@ function TimesheetForm() {
         });
       }
 
-      // Navigate to review
+      // Navigate to review with formatted dates
       navigate("/review", {
         state: {
-          startDate,
-          endDate,
+          startDate: formatLocalDate(localStartDate), // Pass MM/DD/YYYY
+          endDate: formatLocalDate(localEndDate),
           client,
           state,
           week1Hours,
