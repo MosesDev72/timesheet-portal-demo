@@ -15,8 +15,9 @@ const FILE_PATH = path.join(__dirname, "Payroll Copy - AscentUP.xlsx");
 const SHEET_NAME = "Sheet1";
 
 // In-memory map for faster access
-let timesheetMap = {}; // { "email-period": [rowData] }
-let sheetData = []; // raw array of rows
+// key = `${email}-${period}` -> row array
+let timesheetMap = {};
+let sheetData = []; // raw array-of-arrays representing rows
 
 // Load or create workbook
 function loadWorkbook() {
@@ -51,13 +52,14 @@ function saveWorkbook() {
   XLSX.writeFile(wb, FILE_PATH);
 }
 
-// Format period MM/DD–MM/DD
+// Format period MM/DD/YYYY – MM/DD/YYYY (true en dash)
 function formatPeriod(start, end) {
   const formatDate = (d) => {
     const dt = new Date(d);
-    return `${String(dt.getMonth() + 1).padStart(2, "0")}/${String(
-      dt.getDate()
-    ).padStart(2, "0")}`;
+    const mm = String(dt.getMonth() + 1).padStart(2, "0");
+    const dd = String(dt.getDate()).padStart(2, "0");
+    const yyyy = dt.getFullYear();
+    return `${mm}/${dd}/${yyyy}`;
   };
   return `${formatDate(start)}–${formatDate(end)}`;
 }
@@ -65,12 +67,19 @@ function formatPeriod(start, end) {
 // Init load
 loadWorkbook();
 
-
 // 📌 Submit hours
 app.post("/submit", (req, res) => {
   try {
-    const { email, client, state, periodStart, periodEnd, week, hours, notes } =
-      req.body;
+    const {
+      email,
+      client,
+      state,
+      periodStart,
+      periodEnd,
+      week,
+      hours,
+      notes,
+    } = req.body;
 
     if (!email || !periodStart || !periodEnd) {
       return res
@@ -78,10 +87,30 @@ app.post("/submit", (req, res) => {
         .json({ success: false, error: "Email and period required" });
     }
 
+    // Validate week + hours
+    const weekNorm = (week || "").toUpperCase();
+    const numHours = Number(hours);
+
+    if (!["W1", "W2"].includes(weekNorm)) {
+      return res
+        .status(400)
+        .json({ success: false, error: "week must be W1 or W2" });
+    }
+    if (!Number.isFinite(numHours) || numHours < 0) {
+      return res
+        .status(400)
+        .json({ success: false, error: "hours must be a non-negative number" });
+    }
+    if (numHours > 100) {
+      return res
+        .status(400)
+        .json({ success: false, error: "hours per week cannot exceed 100" });
+    }
+
     const period = formatPeriod(periodStart, periodEnd);
     const key = `${email}-${period}`;
 
-    // Look for existing row
+    // Look for existing row (upsert behavior)
     let row = timesheetMap[key];
     if (!row) {
       row = [email, "", "", state || "", client || "", period, notes || ""];
@@ -89,9 +118,9 @@ app.post("/submit", (req, res) => {
       timesheetMap[key] = row;
     }
 
-    // Update hours
-    if (week === "W1") row[1] = hours;
-    if (week === "W2") row[2] = hours;
+    // Update hours (append into same row for the same employee+period)
+    if (weekNorm === "W1") row[1] = numHours;
+    if (weekNorm === "W2") row[2] = numHours;
 
     // Always update state/client/notes if provided
     row[3] = state || row[3];
@@ -108,22 +137,22 @@ app.post("/submit", (req, res) => {
   }
 });
 
-
 // 📌 Get timesheet by email + period
 app.get("/timesheet", (req, res) => {
   try {
     const { email, period } = req.query;
-    if (!email || !period) return res.status(400).json({ error: "email and period required" });
+    if (!email || !period)
+      return res.status(400).json({ error: "email and period required" });
 
     const key = `${email}-${period}`;
-    const row = timesheetMap[key]; // ✅ instant lookup, no reload
+    const row = timesheetMap[key]; // ✅ instant lookup
 
     if (!row) return res.json(null);
 
     res.json({
       email: row[0],
-      w1: row[1] || "",
-      w2: row[2] || "",
+      w1: row[1] ?? "",
+      w2: row[2] ?? "",
       state: row[3],
       client: row[4],
       period: row[5],
@@ -135,8 +164,6 @@ app.get("/timesheet", (req, res) => {
   }
 });
 
-
-
 // 📌 Download Excel file
 app.get("/download", (req, res) => {
   res.download(FILE_PATH, "timesheet.xlsx", (err) => {
@@ -146,7 +173,6 @@ app.get("/download", (req, res) => {
     }
   });
 });
-
 
 // Start server
 app.listen(3001, () =>
