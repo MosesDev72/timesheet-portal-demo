@@ -14,12 +14,37 @@ app.use(bodyParser.json());
 const FILE_PATH = path.join(__dirname, "Payroll Copy - AscentUP.xlsx");
 const SHEET_NAME = "Sheet1";
 
-// In-memory map for faster access
-let timesheetMap = {}; // { "email-period": [rowData] }
-let sheetData = []; // raw array of rows
+// In-memory map: key = `${email}::${startISO}` -> row array
+let timesheetMap = {};
+let sheetData = [];
 
-// Load or create workbook
-function loadWorkbook() {
+// ---------- Date helpers ----------
+const toDate = (v) => new Date(v);
+const pad2 = (n) => String(n).padStart(2, "0");
+const fmtMDY = (d) => `${pad2(d.getMonth() + 1)}/${pad2(d.getDate())}/${d.getFullYear()}`;
+
+// Return Monday of the week for the given date (00:00 local)
+function startOfWeekMonday(d) {
+  const dt = new Date(d.getFullYear(), d.getMonth(), d.getDate());
+  const day = dt.getDay(); // 0 Sun, 1 Mon, ... 6 Sat
+  const diff = day === 0 ? -6 : 1 - day; // move back to Monday
+  dt.setDate(dt.getDate() + diff);
+  dt.setHours(0, 0, 0, 0);
+  return dt;
+}
+
+// Build canonical 2-week period from any input date
+function canonPeriodFrom(dateLike) {
+  const any = toDate(dateLike);
+  const start = startOfWeekMonday(any);       // Monday
+  const end = new Date(start); end.setDate(end.getDate() + 13); // Sunday of week 2
+  const startISO = start.toISOString().slice(0, 10);            // YYYY-MM-DD
+  const display = `${fmtMDY(start)}–${fmtMDY(end)}`;            // nice string with en dash
+  return { start, end, startISO, display };
+}
+
+// ---------- Workbook load/save ----------
+function ensureWorkbook() {
   if (!fs.existsSync(FILE_PATH)) {
     const wb = XLSX.utils.book_new();
     const ws = XLSX.utils.aoa_to_sheet([
@@ -28,22 +53,32 @@ function loadWorkbook() {
     XLSX.utils.book_append_sheet(wb, ws, SHEET_NAME);
     XLSX.writeFile(wb, FILE_PATH);
   }
+}
 
+function loadWorkbook() {
+  ensureWorkbook();
   const wb = XLSX.readFile(FILE_PATH);
   const ws = wb.Sheets[SHEET_NAME];
   sheetData = XLSX.utils.sheet_to_json(ws, { header: 1 });
 
-  // Build fast lookup map
+  // rebuild map (derive startISO from the Period column)
   timesheetMap = {};
   sheetData.slice(1).forEach((row) => {
-    const key = `${row[0]}-${row[5]}`; // email + period
+    if (!row?.length) return;
+    const email = row[0];
+    const periodStr = row[5]; // "MM/DD/YYYY–MM/DD/YYYY"
+    if (!email || !periodStr) return;
+
+    // parse start from display string robustly
+    const [m, d, y] = periodStr.split("–")[0].split("/");
+    const start = new Date(Number(y), Number(m) - 1, Number(d));
+    const startISO = start.toISOString().slice(0, 10);
+
+    const key = `${email}::${startISO}`;
     timesheetMap[key] = row;
   });
-
-  return wb;
 }
 
-// Save back to Excel
 function saveWorkbook() {
   const wb = XLSX.utils.book_new();
   const ws = XLSX.utils.aoa_to_sheet(sheetData);
@@ -51,79 +86,77 @@ function saveWorkbook() {
   XLSX.writeFile(wb, FILE_PATH);
 }
 
-// Format period MM/DD–MM/DD
-function formatPeriod(start, end) {
-  const formatDate = (d) => {
-    const dt = new Date(d);
-    return `${String(dt.getMonth() + 1).padStart(2, "0")}/${String(
-      dt.getDate()
-    ).padStart(2, "0")}`;
-  };
-  return `${formatDate(start)}–${formatDate(end)}`;
-}
-
-// Init load
+// Init
 loadWorkbook();
 
-
-// 📌 Submit hours
+// ---------- API ----------
 app.post("/submit", (req, res) => {
   try {
-    const { email, client, state, periodStart, periodEnd, week, hours, notes } =
-      req.body;
-
-    if (!email || !periodStart || !periodEnd) {
-      return res
-        .status(400)
-        .json({ success: false, error: "Email and period required" });
+    const { email, client, state, periodStart, week, hours, notes } = req.body;
+    if (!email || !periodStart) {
+      return res.status(400).json({ success: false, error: "Email and periodStart required" });
     }
 
-    const period = formatPeriod(periodStart, periodEnd);
-    const key = `${email}-${period}`;
+    // Canonical 2-week period based on submitted periodStart
+    const canon = canonPeriodFrom(periodStart);
+    const key = `${email}::${canon.startISO}`;
 
-    // Look for existing row
+    // Validation
+    const weekNorm = String(week || "").toUpperCase();
+    const numHours = Number(hours);
+    if (!["W1", "W2"].includes(weekNorm)) {
+      return res.status(400).json({ success: false, error: "week must be W1 or W2" });
+    }
+    if (!Number.isFinite(numHours) || numHours < 0 || numHours > 100) {
+      return res.status(400).json({ success: false, error: "hours must be between 0 and 100" });
+    }
+
+    // Upsert row
     let row = timesheetMap[key];
     if (!row) {
-      row = [email, "", "", state || "", client || "", period, notes || ""];
+      row = [email, "", "", state || "", client || "", canon.display, notes || ""];
       sheetData.push(row);
       timesheetMap[key] = row;
     }
+    if (weekNorm === "W1") row[1] = numHours;
+    if (weekNorm === "W2") row[2] = numHours;
 
-    // Update hours
-    if (week === "W1") row[1] = hours;
-    if (week === "W2") row[2] = hours;
+    // Keep other fields fresh
+    row[3] = state ?? row[3];
+    row[4] = client ?? row[4];
+    row[6] = notes ?? row[6];
 
-    // Always update state/client/notes if provided
-    row[3] = state || row[3];
-    row[4] = client || row[4];
-    row[6] = notes || row[6];
-
-    // Save back to Excel
     saveWorkbook();
-
-    res.json({ success: true, period });
+    res.json({ success: true, period: canon.display });
   } catch (err) {
     console.error(err);
     res.status(500).json({ success: false, error: err.message });
   }
 });
 
-
-// 📌 Get timesheet by email + period
 app.get("/timesheet", (req, res) => {
   try {
     const { email, period } = req.query;
     if (!email || !period) return res.status(400).json({ error: "email and period required" });
 
-    const key = `${email}-${period}`;
-    const row = timesheetMap[key]; // ✅ instant lookup, no reload
+    // Accept either the pretty display ("MM/DD/YYYY–MM/DD/YYYY") or just yyyy-mm-dd for start
+    let startISO;
+    if (period.includes("–")) {
+      const [m, d, y] = period.split("–")[0].split("/");
+      const start = new Date(Number(y), Number(m) - 1, Number(d));
+      startISO = start.toISOString().slice(0, 10);
+    } else {
+      // assume yyyy-mm-dd
+      startISO = period;
+    }
 
+    const row = timesheetMap[`${email}::${startISO}`];
     if (!row) return res.json(null);
 
     res.json({
       email: row[0],
-      w1: row[1] || "",
-      w2: row[2] || "",
+      w1: row[1] ?? "",
+      w2: row[2] ?? "",
       state: row[3],
       client: row[4],
       period: row[5],
@@ -135,10 +168,7 @@ app.get("/timesheet", (req, res) => {
   }
 });
 
-
-
-// 📌 Download Excel file
-app.get("/download", (req, res) => {
+app.get("/download", (_req, res) => {
   res.download(FILE_PATH, "timesheet.xlsx", (err) => {
     if (err) {
       console.error("Download error:", err);
@@ -147,8 +177,6 @@ app.get("/download", (req, res) => {
   });
 });
 
+app.listen(3001, () => console.log("✅ Backend running on http://localhost:3001"));
 
-// Start server
-app.listen(3001, () =>
-  console.log("✅ Backend running on http://localhost:3001")
-);
+
